@@ -1,0 +1,45 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+group = 'kernel'
+version = '1.0.0'
+
+repositories {
+    mavenLocal()     // lấy kernel:query và kernel:common đã publish ở máy
+    mavenCentral()
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+    withSourcesJar()
+    withJavadocJar()
+}
+
+dependencies {
+    implementation 'kernel:query:1.0.0'
+
+    // compileOnly: chỉ dùng lúc biên dịch, không ép version lên service.
+    compileOnly platform("org.springframework.boot:spring-boot-dependencies:4.1.1")
+    compileOnly 'org.springframework.data:spring-data-jpa'
+    compileOnly 'jakarta.persistence:jakarta.persistence-api'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+tasks.withType(Javadoc).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            from components.java
+        }
+    }
+}
