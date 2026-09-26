@@ -24,6 +24,12 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 public abstract class BaseSearchService<E> {
 
     /**
+     * Khởi tạo cho lớp con.
+     */
+    protected BaseSearchService() {
+    }
+
+    /**
      * Repository dùng để tìm kiếm, do lớp con cung cấp.
      *
      * @return repository hỗ trợ Specification

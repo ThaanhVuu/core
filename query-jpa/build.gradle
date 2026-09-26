@@ -20,7 +20,7 @@ java {
 }
 
 dependencies {
-    implementation 'kernel:query:1.0.0'
+    api 'kernel:query:1.0.0'
 
     // compileOnly: chỉ dùng lúc biên dịch, không ép version lên service.
     compileOnly platform("org.springframework.boot:spring-boot-dependencies:4.1.1")

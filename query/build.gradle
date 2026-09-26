@@ -12,7 +12,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'kernel:common:1.0.0'
+    api 'kernel:common:1.0.0'
 }
 
 java {
