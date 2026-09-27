@@ -1,15 +1,3 @@
-pluginManagement {
-    // Convention plugin dùng chung cho các module (chỉ cấu hình build, không khai báo dependency).
-    includeBuild('build-logic')
-}
-
-dependencyResolutionManagement {
-    repositoriesMode = RepositoriesMode.FAIL_ON_PROJECT_REPOS
-    repositories {
-        mavenCentral()
-    }
-}
-
 rootProject.name = 'kernel'
 
 include 'common'

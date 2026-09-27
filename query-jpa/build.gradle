@@ -1,5 +1,6 @@
 plugins {
-    id 'kernel.java-library'
+    id 'java-library'
+    id 'maven-publish'
 }
 
 dependencies {
