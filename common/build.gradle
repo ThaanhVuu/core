@@ -4,3 +4,11 @@ plugins {
 }
 
 // common không phụ thuộc thư viện nào.
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+}

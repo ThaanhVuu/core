@@ -3,12 +3,25 @@ plugins {
     id 'maven-publish'
 }
 
+repositories {
+    mavenCentral()
+}
+
 dependencies {
-    // api: PageResult, SearchQuery... lộ ra trong public API.
-    api project(':query')
+    // implementation: service tự khai báo kernel:query để dùng PageResult, SearchQuery...
+    implementation project(':query')
 
     // compileOnly: chỉ dùng lúc biên dịch, không ép version lên service.
     compileOnly platform('org.springframework.boot:spring-boot-dependencies:4.1.1')
+    compileOnly 'org.springframework.boot:spring-boot-autoconfigure'
     compileOnly 'org.springframework.data:spring-data-jpa'
     compileOnly 'jakarta.persistence:jakarta.persistence-api'
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
 }
