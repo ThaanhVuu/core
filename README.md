@@ -229,7 +229,7 @@ Event chỉ được **ghi nhận** trong aggregate và **phát sau khi lưu**, 
 | `SearchSpec` | **Whitelist** của một API: được lọc theo thuộc tính nào, operator nào, sort theo gì, giới hạn bao nhiêu. `resolve()` là cổng kiểm soát | Build lúc khởi động; `resolve` mỗi request |
 | `PropertyResolver` | Dùng reflection tìm kiểu của thuộc tính (hỗ trợ lớp cha, thuộc tính lồng `a.b`). Tên sai → lỗi ngay lúc khởi động | Lúc khởi động |
 | `ValueConverter` | Chọn hàm đổi chuỗi sang đúng kiểu (`Instant::parse`, `UUID::fromString`, enum...) | Lúc khởi động |
-| `FilterDefinition` | Một dòng trong whitelist: tên, operator, hàm chuyển đổi đã chọn sẵn | Lưu từ lúc khởi động |
+| `FilterDefinition` | Một dòng trong whitelist: tên, operator mặc định và các operator được phép, hàm chuyển đổi đã chọn sẵn | Lưu từ lúc khởi động |
 | `SearchRequest`, `FilterInput` | Payload **thô** của client, chưa tin | Mỗi request |
 | `Criterion`, `SortOrder`, `SearchQuery` | Truy vấn **đã sạch**, bất biến | Mỗi request |
 | `PageResult<T>` | Kết quả kèm `total`, `totalPages`; `map()` đổi phần tử sang kiểu khác | Mỗi request |
@@ -244,7 +244,7 @@ Event chỉ được **ghi nhận** trong aggregate và **phát sau khi lưu**, 
 ```java
 private static final SearchSpec ORDER_SEARCH = SearchSpec.builder(OrderEntity.class)
         .filter("status", Operator.IN)
-        .filter("createdAt", Operator.GTE)
+        .filter("createdAt", Operator.GTE, Operator.LTE)
         .filter("customer.name", Operator.CONTAINS)
         .sortable("createdAt", "total")
         .defaultSort("createdAt", SortDirection.DESC)
@@ -258,7 +258,7 @@ private static final SearchSpec ORDER_SEARCH = SearchSpec.builder(OrderEntity.cl
 
 | Method của Builder | Tác dụng | Mặc định |
 |---|---|---|
-| `filter(property, operator)` | Cho phép lọc theo thuộc tính | |
+| `filter(property, operator, more...)` | Cho phép lọc theo thuộc tính; operator đầu là mặc định, các operator sau là lựa chọn thêm cho client | |
 | `sortable(properties...)` | Cho phép sắp xếp | |
 | `defaultSort(property, direction)` | Sắp xếp khi client không gửi `sortBy` hợp lệ | Không có |
 | `tieBreaker(property)` | Thuộc tính sắp xếp phụ để phân trang ổn định; `null` để tắt | `"id"` |
@@ -270,12 +270,13 @@ private static final SearchSpec ORDER_SEARCH = SearchSpec.builder(OrderEntity.cl
 | Kiểu thuộc tính | Operator hợp lệ |
 |---|---|
 | `String` | tất cả |
-| Số, `BigDecimal`, `Instant`, `LocalDate`, `LocalDateTime`, enum | tất cả trừ `CONTAINS`, `STARTS_WITH` |
+| Số, `BigDecimal`, `Instant`, `LocalDate`, `LocalDateTime` | tất cả trừ `CONTAINS`, `STARTS_WITH` |
+| enum | `EQ, NE, IN` |
 | `UUID`, `Boolean` | `EQ, NE, IN` |
 | Thuộc tính lồng (`customer.name`) | theo kiểu của thuộc tính cuối |
 | Đi xuyên collection (`items.name`) | chưa hỗ trợ |
 
-Mỗi thuộc tính chỉ khai báo **một** operator.
+Mỗi thuộc tính khai báo **một lần**, có thể kèm nhiều operator, ví dụ lọc khoảng ngày: `.filter("createdAt", Operator.GTE, Operator.LTE)`. Client gửi thêm `"operator": "lte"` (không phân biệt hoa thường); không gửi thì dùng operator đầu tiên. Operator ngoài danh sách → `QUERY_OPERATOR_NOT_ALLOWED`.
 
 ### 5.3. Hợp đồng với client
 
@@ -285,7 +286,8 @@ Mỗi thuộc tính chỉ khai báo **một** operator.
   "limit": 20,
   "filters": [
     { "property": "status", "value": "pending,paid" },
-    { "property": "createdAt", "value": "2026-01-01T00:00:00Z" }
+    { "property": "createdAt", "operator": "gte", "value": "2026-01-01T00:00:00Z" },
+    { "property": "createdAt", "operator": "lte", "value": "2026-01-31T23:59:59Z" }
   ],
   "sortBy": "createdAt",
   "sortDir": "DESC"
@@ -298,6 +300,7 @@ Mỗi thuộc tính chỉ khai báo **một** operator.
 | Bộ lọc rỗng, giá trị rỗng | Bỏ qua |
 | Thuộc tính hợp lệ nhưng giá trị sai kiểu | `QueryException` `QUERY_FILTER_VALUE_INVALID` |
 | `IN` với hơn 100 giá trị | `QueryException` `QUERY_TOO_MANY_VALUES` |
+| `operator` không nằm trong danh sách cho phép của thuộc tính | `QueryException` `QUERY_OPERATOR_NOT_ALLOWED` |
 | `sortDir` không phải ASC/DESC | `QueryException` `QUERY_SORT_DIRECTION_INVALID` |
 | `page` thiếu hoặc âm | 0 |
 | `limit` thiếu hoặc không dương / vượt `maxLimit` | `defaultLimit` / `maxLimit` |

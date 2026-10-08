@@ -2,6 +2,9 @@ package kernel.query.jpa;
 
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Expression;
+import jakarta.persistence.criteria.From;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
@@ -21,7 +24,7 @@ import java.util.Locale;
  * <ul>
  *   <li>{@code of(criteria, scope)}: tạo Specification ghép mọi điều kiện bằng AND; chỉ là công thức, Hibernate gọi khi dựng câu truy vấn và câu đếm</li>
  *   <li>{@code toPredicate(criterion, root, cb)}: dịch một Criterion sang Predicate theo operator</li>
- *   <li>{@code resolvePath(root, field)}: đi theo thuộc tính lồng: "department.name" thành root.get("department").get("name")</li>
+ *   <li>{@code resolvePath(root, field)}: đi theo thuộc tính lồng: "department.name" thành LEFT JOIN department rồi lấy name</li>
  *   <li>{@code like(cb, path, pattern)}: so khớp chuỗi không phân biệt hoa thường bằng LIKE</li>
  *   <li>{@code compare(cb, operator, path, value)}: so sánh lớn nhỏ cho GT, GTE, LT, LTE</li>
  *   <li>{@code escapeLike(value)}: đổi sang chữ thường và escape %, _ và \ để client không chèn được wildcard</li>
@@ -75,13 +78,27 @@ public final class JpaSpecifications {
         };
     }
 
-    /** Đi theo thuộc tính lồng: "department.name" thành root.get("department").get("name"). */
+    /**
+     * Đi theo thuộc tính lồng: "department.name" thành LEFT JOIN department rồi lấy name.
+     * LEFT JOIN cho các bước trung gian để bản ghi có quan hệ null không bị loại khỏi kết quả;
+     * join đã có sẵn trong truy vấn được dùng lại để không nhân đôi dòng.
+     */
     private static Path<Object> resolvePath(Root<?> root, String field) {
-        Path<Object> path = null;
-        for (String part : field.split("\\.")) {
-            path = path == null ? root.get(part) : path.get(part);
+        String[] parts = field.split("\\.");
+        From<?, ?> from = root;
+        for (int i = 0; i < parts.length - 1; i++) {
+            from = join(from, parts[i]);
         }
-        return path;
+        return from.get(parts[parts.length - 1]);
+    }
+
+    private static From<?, ?> join(From<?, ?> from, String attribute) {
+        for (Join<?, ?> existing : from.getJoins()) {
+            if (existing.getAttribute().getName().equals(attribute) && existing.getJoinType() == JoinType.LEFT) {
+                return existing;
+            }
+        }
+        return from.join(attribute, JoinType.LEFT);
     }
 
     /** So khớp chuỗi không phân biệt hoa thường. */

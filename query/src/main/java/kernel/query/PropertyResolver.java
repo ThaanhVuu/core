@@ -20,6 +20,8 @@ final class PropertyResolver {
             int.class, Integer.class,
             long.class, Long.class,
             double.class, Double.class,
+            short.class, Short.class,
+            float.class, Float.class,
             boolean.class, Boolean.class);
 
     private PropertyResolver() {

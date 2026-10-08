@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -29,7 +31,9 @@ final class ValueConverter {
     static {
         register(String.class, value -> value);
         register(Integer.class, Integer::valueOf);
+        register(Short.class, Short::valueOf);
         register(Long.class, Long::valueOf);
+        register(Float.class, Float::valueOf);
         register(Double.class, Double::valueOf);
         register(BigDecimal.class, BigDecimal::new);
         register(Boolean.class, ValueConverter::parseBoolean);
@@ -37,6 +41,8 @@ final class ValueConverter {
         register(Instant.class, Instant::parse);
         register(LocalDate.class, LocalDate::parse);
         register(LocalDateTime.class, LocalDateTime::parse);
+        register(OffsetDateTime.class, OffsetDateTime::parse);
+        register(ZonedDateTime.class, ZonedDateTime::parse);
     }
 
     private ValueConverter() {

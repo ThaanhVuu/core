@@ -18,6 +18,9 @@ public enum QueryErrorCode implements ErrorCode {
     /** Giá trị không chuyển được sang kiểu của thuộc tính. Tham số: giá trị, tên thuộc tính. */
     QUERY_FILTER_VALUE_INVALID(ErrorType.VALIDATION, "Invalid value \"%s\" for filter \"%s\""),
 
+    /** Operator client gửi không được phép với thuộc tính. Tham số: operator, tên thuộc tính. */
+    QUERY_OPERATOR_NOT_ALLOWED(ErrorType.VALIDATION, "Operator \"%s\" is not allowed for filter \"%s\""),
+
     /** Bộ lọc IN có quá nhiều giá trị. Tham số: tên thuộc tính, số lượng tối đa. */
     QUERY_TOO_MANY_VALUES(ErrorType.VALIDATION, "Filter \"%s\" accepts at most %s values"),
 

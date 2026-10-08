@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Báo cáo đánh giá kernel</title>
+<style>
+  :root { --bg:#fff; --fg:#1d2330; --muted:#5b6475; --line:#e3e6ec; --card:#f6f7fa; --ok:#157347; --warn:#b26a00; --bad:#b42318; --accent:#2457d6; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14171f; --fg:#e6e9ef; --muted:#9aa3b5; --line:#2a3040; --card:#1c2130; --ok:#4cc38a; --warn:#f0b04a; --bad:#ff7b72; --accent:#7ea3ff; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.6 system-ui, "Segoe UI", sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 1.8rem; margin: 0 0 4px; }
+  h2 { font-size: 1.25rem; margin: 36px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+  p.sub { color: var(--muted); margin: 0 0 20px; }
+  code { background: var(--card); padding: 1px 5px; border-radius: 4px; font: 0.9em ui-monospace, Consolas, monospace; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  .tbl { overflow-x: auto; }
+  .tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.8rem; font-weight: 600; border: 1px solid currentColor; white-space: nowrap; }
+  .fixed { color: var(--ok); } .open { color: var(--warn); } .risk { color: var(--bad); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 16px 0; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .stat b { display: block; font-size: 1.6rem; }
+  .stat span { color: var(--muted); font-size: 0.85rem; }
+  .note { background: var(--card); border-left: 3px solid var(--accent); padding: 10px 14px; border-radius: 4px; margin: 12px 0; }
+  ul { padding-left: 1.2rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Báo cáo đánh giá thư viện kernel</h1>
+  <p class="sub">Phạm vi: 4 module Gradle <code>common</code>, <code>ddd</code>, <code>query</code>, <code>query-jpa</code> (version 2.0.2). Ngày 08/10/2026.</p>
+
+  <div class="stats">
+    <div class="stat"><b>65</b><span>test, 0 lỗi</span></div>
+    <div class="stat"><b>4/4</b><span>module có test</span></div>
+    <div class="stat"><b>9</b><span>điểm đã sửa</span></div>
+    <div class="stat"><b>1</b><span>điểm để ngỏ</span></div>
+  </div>
+
+  <h2>1. Nhận xét chung</h2>
+  <p>Code gọn, nhất quán, javadoc rõ lý do thiết kế. Phần mạnh nhất là <code>SearchSpec</code>: whitelist thuộc tính, operator và limit, kiểm tra tên thuộc tính bằng reflection ngay lúc build, có tie-breaker để phân trang ổn định, và <code>escapeLike</code> chặn client chèn wildcard. Phân module hợp lý, Spring chỉ ở <code>compileOnly</code> nên không ép version lên service dùng thư viện.</p>
+
+  <h2>2. Điểm đã sửa</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>#</th><th>Vấn đề</th><th>Xử lý</th><th>Trạng thái</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>File <code>AutoConfiguration.imports</code> nằm ở <code>resources/spring/</code>, Spring Boot không đọc nên auditing không bật.</td><td>Chuyển vào <code>resources/META-INF/spring/</code> (đã có sẵn trong working tree khi tôi kiểm tra lại; cần commit cả việc xóa file cũ).</td><td><span class="tag fixed">Đã sửa</span></td></tr>
+      <tr><td>2</td><td>Không có test nào.</td><td>Thêm 65 test cho cả 4 module (gồm 8 test tích hợp H2 + Hibernate), cấu hình JUnit 5 trong <code>build.gradle</code> gốc.</td><td><span class="tag fixed">Đã sửa</span></td></tr>
+      <tr><td>3</td><td>Thuộc tính lồng (<code>department.name</code>) dùng inner join ngầm, bản ghi có quan hệ null bị loại.</td><td><code>resolvePath</code> dùng LEFT JOIN cho bước trung gian và tái sử dụng join đã có.</td><td><span class="tag fixed">Đã sửa</span></td></tr>
+      <tr><td>4</td><td><code>ValueConverter</code> thiếu kiểu.</td><td>Thêm <code>Short</code>, <code>Float</code>, <code>OffsetDateTime</code>, <code>ZonedDateTime</code>.</td><td><span class="tag fixed">Đã sửa</span></td></tr>
+      <tr><td>5</td><td><code>PropertyResolver</code> không đổi <code>short</code>, <code>float</code> sang kiểu bọc nên filter trên field nguyên thủy báo "không hỗ trợ".</td><td>Bổ sung vào bảng wrapper.</td><td><span class="tag fixed">Đã sửa</span></td></tr>
+      <tr><td>6</td><td><code>JpaEntity</code> dùng <code>@Nullable</code> của jspecify nhưng không khai báo dependency, chỉ chạy nhờ bắc cầu.</td><td>Thêm <code>compileOnly 'org.jspecify:jspecify'</code>.</td><td><span class="tag fixed">Đã sửa</span></td></tr>
+      <tr><td>8</td><td>Mỗi thuộc tính chỉ có một operator, không lọc khoảng được.</td><td><code>filter(property, op, more...)</code>; client gửi thêm <code>operator</code>, nằm ngoài whitelist thì <code>QUERY_OPERATOR_NOT_ALLOWED</code>.</td><td><span class="tag fixed">Đã sửa</span></td></tr>
+      <tr><td>9</td><td>GT/GTE/LT/LTE chấp nhận trên enum và boolean.</td><td>Builder báo lỗi lúc khởi động.</td><td><span class="tag fixed">Đã sửa</span></td></tr>
+      <tr><td>7</td><td>Javadoc <code>JpaSpecifications</code> mô tả resolvePath theo cách cũ.</td><td>Cập nhật theo LEFT JOIN.</td><td><span class="tag fixed">Đã sửa</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>3. Điểm để ngỏ</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Vấn đề</th><th>Lý do chưa sửa</th><th>Mức</th></tr></thead>
+    <tbody>
+      <tr><td><code>search()</code> luôn chạy thêm câu <code>COUNT</code>.</td><td>Tối ưu tùy nhu cầu (cần bản không đếm tổng). Chưa thêm để tránh phình API.</td><td><span class="tag open">Thấp</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>4. Thư viện có cần viết test không?</h2>
+  <p><b>Có, và cần hơn code ứng dụng.</b> Lý do:</p>
+  <ul>
+    <li>Lỗi trong lib lan sang mọi service dùng nó, và service thường không có cách vá.</li>
+    <li>API public là hợp đồng: test chốt hành vi để lần refactor sau không phá ngầm (ví dụ clamp limit, thứ tự sort, <code>IN</code> tối đa 100 giá trị).</li>
+    <li>Chứng minh được các cam kết trong javadoc (UUID v7 tăng dần, an toàn đa luồng, <code>escapeLike</code>).</li>
+    <li>Có test mới dám sửa như mục 3, 4, 5 ở trên.</li>
+  </ul>
+  <div class="note">
+    <b>Đã có:</b> <code>Guard</code>, <code>AppException</code>, <code>UuidV7</code> (kể cả 8 luồng × 5.000 id không trùng), <code>AggregateRoot</code>/<code>Entity</code>, <code>SearchSpec</code> (resolve, clamp, IN, sort, builder, toBuilder), <code>ValueConverter</code>, <code>PropertyResolver</code>, <code>PageResult</code>, <code>escapeLike</code>, <code>JpaEntity.isNew</code>.<br>
+    <b>Test tích hợp:</b> <code>SearchRepositoryIT</code> chạy Hibernate thật trên H2 in-memory: phân trang, sort, CONTAINS không phân biệt hoa thường, escape wildcard, IN, filter lồng với LEFT JOIN, và scope bổ sung.
+  </div>
+
+  <h2>5. Kết quả chạy</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Module</th><th>Số test</th><th>Lỗi</th></tr></thead>
+    <tbody>
+      <tr><td><code>common</code></td><td>14</td><td>0</td></tr>
+      <tr><td><code>ddd</code></td><td>5</td><td>0</td></tr>
+      <tr><td><code>query</code></td><td>35</td><td>0</td></tr>
+      <tr><td><code>query-jpa</code></td><td>11</td><td>0</td></tr>
+    </tbody>
+  </table></div>
+  <p>Lệnh: <code>./gradlew clean test build</code>, kết quả <b>BUILD SUCCESSFUL</b>.</p>
+</main>
+</body>
+</html>

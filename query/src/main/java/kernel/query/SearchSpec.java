@@ -48,7 +48,7 @@ import java.util.function.Function;
  *   <li>{@code convertMany(definition, raw)}: cho IN: tách theo dấu phẩy, giới hạn số lượng, đổi từng giá trị</li>
  *   <li>{@code resolveSort(sortBy, sortDir)}: chọn thuộc tính sắp xếp của client hoặc mặc định, rồi thêm tieBreaker vào cuối</li>
  *   <li>{@code parseDirection(raw)}: đọc chiều sắp xếp; sai thì bọc thành QueryException</li>
- *   <li>{@code Builder.filter(property, operator)}: cho phép lọc theo một thuộc tính: tìm kiểu bằng reflection, chọn hàm chuyển đổi, kiểm tra operator hợp với kiểu</li>
+ *   <li>{@code Builder.filter(property, operator, more...)}: cho phép lọc theo một thuộc tính với một hoặc nhiều operator (operator đầu là mặc định): tìm kiểu bằng reflection, chọn hàm chuyển đổi, kiểm tra từng operator hợp với kiểu; GT/GTE/LT/LTE không dùng được cho enum và Boolean</li>
  *   <li>{@code Builder.sortable(properties...)}: cho phép sắp xếp theo một hoặc nhiều thuộc tính, kiểm tra tên tồn tại</li>
  *   <li>{@code Builder.defaultSort(property, direction)}: sắp xếp khi client không gửi sortBy hợp lệ</li>
  *   <li>{@code Builder.tieBreaker(property)}: thuộc tính sắp xếp phụ để phân trang ổn định, mặc định "id", truyền null để tắt</li>
@@ -149,14 +149,34 @@ public final class SearchSpec {
             return Optional.empty();
         }
 
-        Object value = definition.operator() == Operator.IN
+        Operator operator = resolveOperator(definition, input.operator());
+
+        Object value = operator == Operator.IN
                 ? convertMany(definition, input.value())
                 : convertOne(definition, input.value());
 
         if (value instanceof List<?> values && values.isEmpty()) {
             return Optional.empty();
         }
-        return Optional.of(new Criterion(definition.property(), definition.operator(), value));
+        return Optional.of(new Criterion(definition.property(), operator, value));
+    }
+
+    /** Dùng operator mặc định nếu client không gửi; ngược lại operator phải nằm trong danh sách cho phép. */
+    private static Operator resolveOperator(FilterDefinition definition, String raw) {
+        if (isBlank(raw)) {
+            return definition.defaultOperator();
+        }
+        Operator requested = null;
+        for (Operator candidate : definition.operators()) {
+            if (candidate.name().equalsIgnoreCase(raw.trim())) {
+                requested = candidate;
+                break;
+            }
+        }
+        if (requested == null) {
+            throw new QueryException(QueryErrorCode.QUERY_OPERATOR_NOT_ALLOWED, raw.trim(), definition.property());
+        }
+        return requested;
     }
 
     /** Chuyển một giá trị bằng hàm đã chọn sẵn, bọc mọi lỗi chuyển đổi thành QueryException. */
@@ -251,12 +271,13 @@ public final class SearchSpec {
          * Cho phép lọc theo một thuộc tính. Kiểu giá trị được đọc từ class target.
          *
          * @param property tên thuộc tính, cũng là tên client gửi; được phép dạng lồng "department.name"
-         * @param operator phép so sánh do server quyết định
+         * @param operator phép so sánh mặc định, dùng khi client không chỉ định operator
+         * @param more     các phép so sánh khác client được phép chọn (ví dụ GTE rồi LTE để lọc khoảng)
          * @return chính builder này
          * @throws IllegalArgumentException nếu thuộc tính không tồn tại, kiểu chưa hỗ trợ,
          *                                  operator không hợp với kiểu, hoặc khai báo trùng
          */
-        public Builder filter(String property, Operator operator) {
+        public Builder filter(String property, Operator operator, Operator... more) {
             requireText(property, "property");
             Objects.requireNonNull(operator, "operator must not be null");
 
@@ -269,20 +290,36 @@ public final class SearchSpec {
                 throw new IllegalArgumentException(
                         "Type " + type.getName() + " is not supported for filter '" + property + "'", e);
             }
-            if (operator.isTextMatch() && type != String.class) {
-                throw new IllegalArgumentException(
-                        "Operator " + operator + " requires a String property, filter '" + property + "'");
+
+            Set<Operator> allowed = new LinkedHashSet<>();
+            allowed.add(operator);
+            for (Operator extra : more) {
+                if (!allowed.add(Objects.requireNonNull(extra, "operator must not be null"))) {
+                    throw new IllegalArgumentException(
+                            "Operator " + extra + " is listed twice, filter '" + property + "'");
+                }
             }
-            if (operator.isComparison() && !Comparable.class.isAssignableFrom(type)) {
-                throw new IllegalArgumentException(
-                        "Operator " + operator + " requires a comparable property, filter '" + property + "'");
+            for (Operator each : allowed) {
+                checkOperatorFitsType(each, type, property);
             }
             if (filters.containsKey(property)) {
                 throw new IllegalArgumentException("Filter '" + property + "' is already declared");
             }
 
-            filters.put(property, new FilterDefinition(property, operator, parser));
+            filters.put(property, new FilterDefinition(property, operator, Set.copyOf(allowed), parser));
             return this;
+        }
+
+        private static void checkOperatorFitsType(Operator operator, Class<?> type, String property) {
+            if (operator.isTextMatch() && type != String.class) {
+                throw new IllegalArgumentException(
+                        "Operator " + operator + " requires a String property, filter '" + property + "'");
+            }
+            if (operator.isComparison()
+                    && (!Comparable.class.isAssignableFrom(type) || type.isEnum() || type == Boolean.class)) {
+                throw new IllegalArgumentException(
+                        "Operator " + operator + " requires a number, text or date property, filter '" + property + "'");
+            }
         }
 
         /**
