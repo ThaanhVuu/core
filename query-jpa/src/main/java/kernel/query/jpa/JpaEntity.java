@@ -5,7 +5,9 @@ import jakarta.persistence.EntityListeners;
 import jakarta.persistence.MappedSuperclass;
 import jakarta.persistence.Version;
 import org.jspecify.annotations.Nullable;
+import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.domain.Persistable;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -105,9 +107,16 @@ public abstract class JpaEntity<ID> implements Persistable<ID> {
      * {@code null} trước lần flush đầu tiên.
      */
     @LastModifiedDate
-    @Column(name = "modify_at", nullable = false)
-    private @Nullable Instant modifyAt;
+    @Column(name = "updated_at", nullable = false)
+    private @Nullable Instant updatedAt;
 
+    @CreatedBy
+    @Column(name = "created_by", updatable = false)
+    private String createdBy;
+
+    @LastModifiedBy
+    @Column(name = "updated_by")
+    private String updatedBy;
     /**
      * Version cho optimistic locking, do Hibernate quản lý: {@code null} khi chưa persist,
      * {@code 0} sau INSERT, tăng 1 sau mỗi UPDATE. Đồng thời là căn cứ của {@link #isNew()}.
@@ -132,7 +141,7 @@ public abstract class JpaEntity<ID> implements Persistable<ID> {
 
     /** @return thời điểm ghi gần nhất, hoặc {@code null} nếu entity chưa được flush lần nào */
     public @Nullable Instant getModifyAt() {
-        return modifyAt;
+        return updatedAt;
     }
 
     /**
@@ -140,7 +149,7 @@ public abstract class JpaEntity<ID> implements Persistable<ID> {
      * nếu entity dirty.
      */
     public void setModifyAt(@Nullable Instant modifyAt) {
-        this.modifyAt = modifyAt;
+        this.updatedAt = modifyAt;
     }
 
     /** @return version hiện tại, hoặc {@code null} nếu entity chưa từng được persist */

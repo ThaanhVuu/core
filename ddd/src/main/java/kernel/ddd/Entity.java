@@ -1,6 +1,9 @@
 package kernel.ddd;
 
+import kernel.common.UuidV7;
+
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * Lớp cơ sở cho entity: đối tượng được nhận diện bằng định danh thay vì thuộc tính.
@@ -55,5 +58,8 @@ public abstract class Entity<ID> {
         return id.hashCode();
     }
 
+    public UUID nextId(){
+        return UuidV7.generate();
+    }
 
 }
