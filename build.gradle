@@ -5,6 +5,9 @@ subprojects {
 
     plugins.withId('java-library') {
         dependencies {
+            compileOnly platform('org.springframework.boot:spring-boot-dependencies:4.0.0')
+            compileOnly 'org.springframework.security:spring-security-core'
+
             testImplementation platform('org.junit:junit-bom:5.13.4')
             testImplementation 'org.junit.jupiter:junit-jupiter'
             testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
