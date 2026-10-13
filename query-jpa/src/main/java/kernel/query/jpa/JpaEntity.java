@@ -1,6 +1,9 @@
 package kernel.query.jpa;
 
+import jakarta.persistence.AttributeOverride;
+import jakarta.persistence.AttributeOverrides;
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.EntityListeners;
 import jakarta.persistence.MappedSuperclass;
 import jakarta.persistence.Version;
@@ -25,7 +28,7 @@ import java.time.Instant;
  * method duy nhất của {@link Persistable} mà class này không implement. {@code ID} thường là
  * {@code UUID} (UUIDv7 sinh ở domain, gán tay, không dùng {@code @GeneratedValue}).
  *
- * <h2>Auditing: {@code createdAt} / {@code modifyAt}</h2>
+ * <h2>Auditing: {@code createdAt} / {@code modifyAt} / {@code createdBy} / {@code updatedBy}</h2>
  *
  * <p>Do {@link AuditingEntityListener} của Spring Data JPA tự set, không cần code nào gán tay.
  * Listener chỉ hoạt động khi {@code @EnableJpaAuditing} được bật; việc này do
@@ -34,15 +37,29 @@ import java.time.Instant;
  * service không phải tự khai báo.
  *
  * <ul>
- *   <li>Insert ({@code @PrePersist}): set cả {@code createdAt} và {@code modifyAt}.</li>
- *   <li>Update ({@code @PreUpdate}): chỉ set {@code modifyAt}; {@code createdAt} có
- *       {@code updatable = false} nên không bao giờ bị ghi đè trong DB.</li>
+ *   <li>Insert ({@code @PrePersist}): set cả {@code createdAt}/{@code createdBy} và
+ *       {@code modifyAt}/{@code updatedBy}.</li>
+ *   <li>Update ({@code @PreUpdate}): chỉ set {@code modifyAt}/{@code updatedBy};
+ *       {@code createdAt}/{@code createdBy} có {@code updatable = false} nên không bao giờ bị ghi
+ *       đè trong DB.</li>
  * </ul>
  *
  * <p><b>Thời điểm:</b> các callback chạy lúc Hibernate <i>flush</i> (thường là khi commit
  * transaction), không phải lúc gọi {@code save()}. Update chỉ xảy ra khi entity thực sự dirty;
  * không có field nào đổi thì không có UPDATE, {@code modifyAt} và {@code version} giữ nguyên.
  * Cần giá trị mới ngay sau khi ghi thì dùng {@code saveAndFlush()}.
+ *
+ * <h2>{@code createdBy} / {@code updatedBy}: snapshot người thao tác</h2>
+ *
+ * <p>Kiểu {@link Audit} là {@code @Embeddable}, được trải thành nhiều cột ngay trong bảng
+ * (xem {@code @AttributeOverrides}): {@code created_by_id}, {@code created_by_username},
+ * {@code created_by_group_id}, {@code created_by_group} và 4 cột {@code updated_by_*} tương ứng.
+ * Giá trị do {@code AuditorAware<Audit>} trong {@link JpaAuditingConfig} cung cấp, lấy từ
+ * JWT. Khi hiển thị chỉ cần đọc {@code username}/{@code permissionGroup}, không phải gọi
+ * identity-service; cần thông tin mới nhất (tên, avatar) thì tra theo {@code userId}.
+ *
+ * <p>Hibernate coi embedded là {@code null} khi mọi cột của nó đều {@code null}, nên các bản ghi
+ * cũ (trước khi có audit user) sẽ đọc ra {@code null}.
  *
  * <h2>{@code version}: hai việc trong một field</h2>
  *
@@ -73,10 +90,11 @@ import java.time.Instant;
  *       {@code true}, Spring gọi {@code persist()} và kết quả là lỗi duplicate primary key thay vì
  *       UPDATE. Mang version cũ (đã có request khác update trước) sẽ ra
  *       {@code OptimisticLockingFailureException}, đây là hành vi mong muốn.</li>
- *   <li><b>Nên mang {@code createdAt} theo</b> nếu cần đọc lại. DB vẫn an toàn nhờ
- *       {@code updatable = false}, nhưng instance trả về sau {@code merge()} sẽ có
- *       {@code createdAt = null}. Setter của {@code createdAt}/{@code modifyAt} tồn tại chỉ để
- *       phục vụ việc map này, không dùng để gán giá trị audit bằng tay.</li>
+ *   <li><b>Nên mang {@code createdAt} và {@code createdBy} theo</b> nếu cần đọc lại. DB vẫn an
+ *       toàn nhờ {@code updatable = false}, nhưng instance trả về sau {@code merge()} sẽ có các
+ *       giá trị này là {@code null}. Setter của {@code createdAt}/{@code modifyAt}/
+ *       {@code createdBy}/{@code updatedBy} tồn tại chỉ để phục vụ việc map này, không dùng để
+ *       gán giá trị audit bằng tay.</li>
  *   <li><b>Dùng object mà {@code save()} trả về.</b> Với entity detached, {@code merge()} trả về
  *       một instance khác; audit và version được cập nhật trên instance đó, không phải trên object
  *       truyền vào.</li>
@@ -87,6 +105,11 @@ import java.time.Instant;
  * <p>{@code ddl-auto: update} thêm cột {@code version} nhưng KHÔNG backfill dữ liệu sẵn có. Bảng
  * đã có bản ghi thì phải chạy tay {@code UPDATE <bảng> SET version = 0 WHERE version IS NULL} một
  * lần, nếu không Hibernate coi các bản ghi cũ là entity mới.
+ *
+ * <p>Tương tự, các cột {@code created_by_*}/{@code updated_by_*} mới đều nullable nên thêm vào
+ * bảng cũ không lỗi. Cột {@code created_by}/{@code updated_by} kiểu cũ (nếu từng có) không còn
+ * được dùng; {@code ddl-auto: update} không xoá chúng, nếu chúng {@code NOT NULL} thì phải drop
+ * hoặc cho nullable.
  *
  * @param <ID> kiểu của khoá chính, thường là {@code UUID}
  */
@@ -110,13 +133,43 @@ public abstract class JpaEntity<ID> implements Persistable<ID> {
     @Column(name = "updated_at", nullable = false)
     private @Nullable Instant updatedAt;
 
+    /**
+     * Người tạo bản ghi (snapshot). Do auditing set lúc {@code @PrePersist}, không bao giờ bị
+     * UPDATE ghi đè. {@code @Column(updatable = false)} ngoài field không áp dụng cho embedded
+     * nên {@code updatable = false} được đặt trong từng {@code @AttributeOverride}.
+     */
     @CreatedBy
-    @Column(name = "created_by", updatable = false)
-    private String createdBy;
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "userId",
+                    column = @Column(name = "created_by_id", updatable = false)),
+            @AttributeOverride(name = "username",
+                    column = @Column(name = "created_by_username", updatable = false)),
+            @AttributeOverride(name = "permissionGroupId",
+                    column = @Column(name = "created_by_group_id", updatable = false)),
+            @AttributeOverride(name = "permissionGroup",
+                    column = @Column(name = "created_by_group", updatable = false))
+    })
+    private @Nullable Audit createdBy;
 
+    /**
+     * Người ghi gần nhất (snapshot). Do auditing set lúc {@code @PrePersist} và
+     * {@code @PreUpdate}.
+     */
     @LastModifiedBy
-    @Column(name = "updated_by")
-    private String updatedBy;
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "userId",
+                    column = @Column(name = "updated_by_id")),
+            @AttributeOverride(name = "username",
+                    column = @Column(name = "updated_by_username")),
+            @AttributeOverride(name = "permissionGroupId",
+                    column = @Column(name = "updated_by_group_id")),
+            @AttributeOverride(name = "permissionGroup",
+                    column = @Column(name = "updated_by_group"))
+    })
+    private @Nullable Audit updatedBy;
+
     /**
      * Version cho optimistic locking, do Hibernate quản lý: {@code null} khi chưa persist,
      * {@code 0} sau INSERT, tăng 1 sau mỗi UPDATE. Đồng thời là căn cứ của {@link #isNew()}.
@@ -150,6 +203,32 @@ public abstract class JpaEntity<ID> implements Persistable<ID> {
      */
     public void setModifyAt(@Nullable Instant modifyAt) {
         this.updatedAt = modifyAt;
+    }
+
+    /** @return người tạo, hoặc {@code null} nếu chưa flush lần nào / bản ghi cũ chưa có audit user */
+    public @Nullable Audit getCreatedBy() {
+        return createdBy;
+    }
+
+    /**
+     * Chỉ dùng khi map domain → entity để giữ giá trị gốc. Không có tác dụng lên DB khi update
+     * (các cột {@code updatable = false}), và bị auditing ghi đè khi insert.
+     */
+    public void setCreatedBy(@Nullable Audit createdBy) {
+        this.createdBy = createdBy;
+    }
+
+    /** @return người ghi gần nhất, hoặc {@code null} nếu chưa flush lần nào / bản ghi cũ */
+    public @Nullable Audit getUpdatedBy() {
+        return updatedBy;
+    }
+
+    /**
+     * Chỉ dùng khi map domain → entity. Giá trị gán ở đây sẽ bị auditing ghi đè ở lần flush kế tiếp
+     * nếu entity dirty.
+     */
+    public void setUpdatedBy(@Nullable Audit updatedBy) {
+        this.updatedBy = updatedBy;
     }
 
     /** @return version hiện tại, hoặc {@code null} nếu entity chưa từng được persist */
