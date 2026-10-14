@@ -58,7 +58,7 @@ public abstract class Entity<ID> {
         return id.hashCode();
     }
 
-    public UUID nextId(){
+    public static UUID nextId(){
         return UuidV7.generate();
     }
 

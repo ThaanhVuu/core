@@ -33,6 +33,10 @@ public enum CommonError implements ErrorCode {
     NOT_FOUND("COMMON_NOT_FOUND", ErrorType.NOT_FOUND,
             "%s not found: %s"),
 
+    /** Dữ liệu đã thay đổi so với phiên bản client gửi lên. Không có tham số. */
+    VERSION_CONFLICT("COMMON_VERSION_CONFLICT", ErrorType.CONFLICT,
+            "Data has changed. Please reload and review before saving"),
+
     /** Lỗi hệ thống không lường trước. Không có tham số. */
     INTERNAL("COMMON_INTERNAL", ErrorType.INTERNAL,
             "An internal error occurred");
