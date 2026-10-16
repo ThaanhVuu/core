@@ -7,7 +7,9 @@ import java.util.UUID;
 public interface BaseRepository <T, ID>{
     Optional<T> findById(ID id);
 
-    T save(T aggregate);
+    T create(T aggregate);
+
+    T update(T aggregate);
 
     PageResult<T> search(SearchQuery query);
 

@@ -1,5 +1,7 @@
 package kernel.ddd;
 
+import kernel.common.CommonError;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -66,5 +68,11 @@ public abstract class AggregateRoot<ID> extends Entity<ID> {
      */
     protected void assignVersion(Long version) {
         this.version = version;
+    }
+
+    public final void checkVersion(long expectedVersion) {
+        if (!Objects.equals(this.version, expectedVersion)) {
+            throw new DomainException(CommonError.VERSION_CONFLICT);
+        }
     }
 }
