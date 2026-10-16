@@ -50,29 +50,29 @@ public abstract class AggregateRoot<ID> extends Entity<ID> {
         domainEvents.clear();
         return events;
     }
-
-    /**
-     * Trả về phiên bản hiện tại của aggregate, dùng cho optimistic locking.
-     *
-     * @return phiên bản, hoặc {@code null} nếu aggregate mới và chưa từng được lưu
-     */
-    public Long getVersion() {
-        return version;
-    }
-
-    /**
-     * Gán phiên bản cho aggregate. Chỉ gọi khi khôi phục aggregate từ database,
-     * thông qua factory {@code reconstitute} của lớp con.
-     *
-     * @param version phiên bản đã lưu trong database
-     */
-    protected void assignVersion(Long version) {
-        this.version = version;
-    }
-
-    public final void checkVersion(long expectedVersion) {
-        if (!Objects.equals(this.version, expectedVersion)) {
-            throw new DomainException(CommonError.VERSION_CONFLICT);
-        }
-    }
+//
+//    /**
+//     * Trả về phiên bản hiện tại của aggregate, dùng cho optimistic locking.
+//     *
+//     * @return phiên bản, hoặc {@code null} nếu aggregate mới và chưa từng được lưu
+//     */
+//    public Long getVersion() {
+//        return version;
+//    }
+//
+//    /**
+//     * Gán phiên bản cho aggregate. Chỉ gọi khi khôi phục aggregate từ database,
+//     * thông qua factory {@code reconstitute} của lớp con.
+//     *
+//     * @param version phiên bản đã lưu trong database
+//     */
+//    protected void assignVersion(Long version) {
+//        this.version = version;
+//    }
+//
+//    public final void checkVersion(long expectedVersion) {
+//        if (!Objects.equals(this.version, expectedVersion)) {
+//            throw new DomainException(CommonError.VERSION_CONFLICT);
+//        }
+//    }
 }
