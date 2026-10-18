@@ -37,9 +37,12 @@ public enum CommonError implements ErrorCode {
     VERSION_CONFLICT("COMMON_VERSION_CONFLICT", ErrorType.CONFLICT,
             "Data has changed. Please reload and review before saving"),
 
+    VALIDITY_PERIOD_INVALID("VALIDITY_PERIOD_INVALID", ErrorType.VALIDATION, "expiresAt must be after effectiveAt"),
+
     /** Lỗi hệ thống không lường trước. Không có tham số. */
     INTERNAL("COMMON_INTERNAL", ErrorType.INTERNAL,
             "An internal error occurred");
+
 
     /** Mã gửi cho frontend. */
     private final String code;

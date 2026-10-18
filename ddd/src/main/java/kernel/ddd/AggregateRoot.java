@@ -70,7 +70,7 @@ public abstract class AggregateRoot<ID> extends Entity<ID> {
         this.version = version;
     }
 
-    public final void checkVersion(long expectedVersion) {
+    public final void checkVersion(Long expectedVersion) {
         if (!Objects.equals(this.version, expectedVersion)) {
             throw new DomainException(CommonError.VERSION_CONFLICT);
         }
